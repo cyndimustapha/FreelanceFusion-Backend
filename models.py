@@ -19,8 +19,6 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.now())
 
    
-    # serialize_rules = ('-categories.user', '-wallets.user', '-password')
-
     @validates('email')
     def validate_email(self, key, email):
         # Simple regex for validating an Email
