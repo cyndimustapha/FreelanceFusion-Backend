@@ -21,7 +21,7 @@ class User(db.Model):
    
     @validates('email')
     def validate_email(self, key, email):
-        # Simple regex for validating an Email
+       
         regex = r'^\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
         if not re.match(regex, email):
             raise ValueError("Invalid email address")
