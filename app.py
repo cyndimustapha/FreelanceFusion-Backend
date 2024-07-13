@@ -6,7 +6,6 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 
 from models import db, User
 
-# Initialize the flask application
 app = Flask(__name__)
 
 
