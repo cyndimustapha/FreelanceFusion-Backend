@@ -18,9 +18,7 @@ class User(db.Model):
     password = db.Column(db.String(129))
     created_at = db.Column(db.DateTime, default=db.func.now())
 
-    # categories = db.relationship("Category", back_populates="user")  # back_ref
-    # wallets = db.relationship("Wallet", back_populates="user")
-
+   
     # serialize_rules = ('-categories.user', '-wallets.user', '-password')
 
     @validates('email')
