@@ -14,7 +14,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["JWT_SECRET_KEY"] = "super-secret"
 
-# CORS(app) # Allow requests from all origins
+
 
 migrate = Migrate(app, db)
 
@@ -45,7 +45,7 @@ class Users(Resource):
         return make_response(body, 200)
 
     def post(self):
-        # check if email is already taken
+       
         email = User.query.filter_by(email=request.json.get('email')).first();
 
         if email:
