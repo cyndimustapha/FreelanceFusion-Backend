@@ -1,19 +1,13 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
-# Initialize Flask application
 app = Flask(__name__)
-
-# Configure SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///User.db'  # Replace with your database URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable modification tracking
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///User.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-
-# Initialize Flask-Migrate
 migrate = Migrate(app, db)
 
-# Example model
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
@@ -24,7 +18,6 @@ class User(db.Model):
     def __repr__(self):
         return f"User('{self.first_name}', '{self.last_name}', '{self.email}')"
 
-# Routes
 @app.route('/')
 def index():
     return jsonify({'message': 'Welcome to my API'})
@@ -32,15 +25,7 @@ def index():
 @app.route('/users', methods=['GET'])
 def get_users():
     users = User.query.all()
-    user_list = []
-    for user in users:
-        user_data = {
-            'id': user.id,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'email': user.email
-        }
-        user_list.append(user_data)
+    user_list = [{'id': user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'email': user.email} for user in users]
     return jsonify({'users': user_list})
 
 @app.route('/users', methods=['POST'])
@@ -57,6 +42,6 @@ def create_user():
     return jsonify({'message': 'User created successfully'}), 201
 
 if __name__ == '__main__':
-    # Create all database tables if they do not exist yet
-    db.create_all()
-    app.run(debug=True)
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='0.0.0.0', port=5000)

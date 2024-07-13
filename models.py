@@ -12,3 +12,7 @@ class User(db.Model):
     def __repr__(self):
         return f"User('{self.first_name}', '{self.last_name}', '{self.email}')"
 
+# Routes
+@app.route('/')
+def index():
+    return jsonify({'message': 'Welcome to my API'})
