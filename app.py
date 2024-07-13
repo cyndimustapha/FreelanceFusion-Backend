@@ -9,7 +9,7 @@ from models import db, User
 # Initialize the flask application
 app = Flask(__name__)
 
-# Configure the database
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["JWT_SECRET_KEY"] = "super-secret"
