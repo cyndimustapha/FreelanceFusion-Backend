@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_bcrypt import Bcrypt
 from models import db, User, Job, Bid
 
@@ -63,7 +63,7 @@ def create_jobs():
             description=job_data['description'],
             budget=job_data['budget'],
             client_id=job_data['client_id'],
-            posted_date=datetime.utcnow()
+            posted_date=datetime.now(timezone.utc)
         )
         db.session.add(new_job)
     
@@ -88,10 +88,11 @@ def create_bids():
         new_bid = Bid(
             amount=bid_data['amount'],
             job_id=bid_data['job_id'],
-            freelancer_id=bid_data['freelancer_id']
+            freelancer_id=bid_data['freelancer_id'],
+            bid_date=datetime.now(timezone.utc) 
         )
         db.session.add(new_bid)
-    
+
     db.session.commit()
 
 if __name__ == '__main__':
