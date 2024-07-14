@@ -1,10 +1,11 @@
+# resources/bid.py
 from flask_restful import Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Bid, Job
 
 class BidResource(Resource):
     
-    @jwt_required
+    @jwt_required()
     def post(self):
         parser = reqparse.RequestParser()
         parser.add_argument('amount', type=float, required=True, help='Amount must be provided')
@@ -30,7 +31,7 @@ class BidResource(Resource):
 
         return {'message': 'Bid placed successfully', 'bid_id': bid.id}, 201
 
-    @jwt_required
+    @jwt_required()
     def get(self, job_id):
         current_user_id = get_jwt_identity()
         if not current_user_id:
