@@ -1,4 +1,3 @@
-# seed.py
 import os
 from datetime import datetime
 from flask_bcrypt import Bcrypt
@@ -11,19 +10,32 @@ def create_users():
         {
             'name': 'Cyndi Mustapha',
             'email': 'cyndi@gmail.com',
-            'password': 'password'
+            'password': 'password',
+            'role': 'client'
         },
         {
-            'name': 'Natalia Juma',
-            'email': 'natalia@gmail.com',
-            'password': 'password'
+            'name': 'Midge Maisel',
+            'email': 'midge@gmail.com',
+            'password': 'password',
+            'role': 'client'
+        },
+        {
+            'name': 'Alice Cullen',
+            'email': 'alice@example.com',
+            'password': 'password',
+            'role': 'freelancer'
+        },
+        {
+            'name': 'Lenny Bruce',
+            'email': 'lenny@example.com',
+            'password': 'password',
+            'role': 'freelancer'
         }
-        
     ]
     
     for user_data in users:
         hashed_password = bcrypt.generate_password_hash(user_data['password']).decode('utf-8')
-        new_user = User(name=user_data['name'], email=user_data['email'], password=hashed_password)
+        new_user = User(name=user_data['name'], email=user_data['email'], password=hashed_password, role=user_data['role'])
         db.session.add(new_user)
     
     db.session.commit()
@@ -33,12 +45,12 @@ def create_jobs():
         {
             'title': 'Web Development Project',
             'description': 'Develop a website using Python and Flask',
-            'budget': 3000,
+            'budget': 2000,
             'client_id': 1 
         },
         {
-            'title': 'Crotchet Project',
-            'description': 'Crotchet a sweater from scratch',
+            'title': 'Mobile App Design',
+            'description': 'Design an iOS and Android app UI/UX',
             'budget': 1500,
             'client_id': 2  
         }
@@ -61,13 +73,13 @@ def create_bids():
     bids = [
         {
             'amount': 1800,
-            'job_id': 1, 
-            'freelancer_id': 2  
+            'job_id': 1,  # Web Development Project
+            'freelancer_id': 3  # Alice Cullen (freelancer)
         },
         {
             'amount': 1400,
-            'job_id': 2,  # Assuming job with ID 2 is Mobile App Design
-            'freelancer_id': 1  # Assuming user with ID 1 is John Doe
+            'job_id': 2,  # Mobile App Design
+            'freelancer_id': 4  # Lenny Bruce (freelancer)
         }
         
     ]
@@ -86,7 +98,7 @@ if __name__ == '__main__':
     # Initialize Flask app context
     from app import app
     with app.app_context():
-        # Create tables 
+        # Create tables
         db.create_all()
         
         # Populate tables with initial data
