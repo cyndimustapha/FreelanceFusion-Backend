@@ -4,6 +4,7 @@
 
 #### Team Members
 The development of this project was a collaborative effort by the following team members:
+
    Cyndi Mustapha
 
 ## Description
