@@ -4,8 +4,7 @@
 
 #### Team Members
 The development of this project was a collaborative effort by the following team members:
-
-Cyndi Mustapha
+   Cyndi Mustapha
 
 ## Description
 This repository contains the backend implementation for a freelance platform where clients can post jobs and freelancers can bid on them.
@@ -24,12 +23,13 @@ Git
 
 ### Installation Instruction
 ```
-git clone 
+git clone https://github.com/cyndimustapha/FreelanceFusion-Backend.git
 
 ```
 
 ### Frontend Repository
-
+ 
+https://github.com/cyndimustapha/FreelanceFusion-Frontend.git
 
 # Live Link
 
