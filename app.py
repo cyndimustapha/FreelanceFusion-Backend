@@ -2,8 +2,8 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
-from modules.models import db
-from modules.routes import init_routes
+from models import db
+from routes import init_routes
 from flask_cors import CORS
 
 app = Flask(__name__)
