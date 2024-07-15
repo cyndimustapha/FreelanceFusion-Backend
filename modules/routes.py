@@ -15,15 +15,4 @@ def init_routes(app):
         )
         db.session.add(new_job)
         db.session.commit()
-        return jsonify({"message": "Job posted successfully!"})
-
-
-    JobPosting.to_dict = lambda self: {
-        "id": self.id,
-        "title": self.title,
-        "description": self.description,
-        "location": self.location,
-        "budget": self.budget,
-        "companyName": self.companyName,
-        "email": self.email
-    }
+        return jsonify({"message": "Job posted successfully!", "job": new_job.to_dict()})

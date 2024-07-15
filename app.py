@@ -9,7 +9,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 app.config.from_object(Config)
 
-CORS(app, resources={r"/job/*": {"origins": "http://localhost:5174"}})
+CORS(app, resources={r"/job/*": {"origins": "http://localhost:5173"}})
 
 db.init_app(app)
 migrate = Migrate(app, db)

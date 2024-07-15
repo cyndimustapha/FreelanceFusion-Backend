@@ -11,7 +11,13 @@ class JobPosting(db.Model):
     companyName = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
 
-def init_app(app):
-    db.init_app(app)
-    with app.app_context():
-        db.create_all()
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "location": self.location,
+            "budget": self.budget,
+            "companyName": self.companyName,
+            "email": self.email
+        }
