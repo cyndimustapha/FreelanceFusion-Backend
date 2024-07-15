@@ -20,8 +20,16 @@ db = SQLAlchemy(metadata = metadata)
 class Bid(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
-    freelancer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    freelancer_id = db.Column(db.Integer, nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
 
-    job = db.relationship('Job', back_populates='bids')
-    freelancer = db.relationship('User', back_populates='bids')
+    def __repr__(self):
+        return f"Bid('{self.amount}', '{self.freelancer_id}')"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "amount": self.amount,
+            "freelancer_id": self.freelancer_id,
+            "job_id": self.job_id
+        }

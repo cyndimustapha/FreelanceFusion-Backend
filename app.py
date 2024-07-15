@@ -27,5 +27,6 @@ jwt = JWTManager(app)
 # API routes
 api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
 
+
 if __name__ == '__main__':
     app.run(debug=True)
