@@ -78,8 +78,16 @@ class Users(Resource):
             return make_response({"message": str(e)}, 500)
 
 # Endpoint to authenticate a user (sign-in)
-@app.route('/signin', methods=['POST'])
+@app.route('/login', methods=['POST', 'OPTIONS'])
 def signin():
+    if request.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',  # or specific origin
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+        return ('', 204, headers)
+
     try:
         email = request.json.get('email')
         password = request.json.get('password')
