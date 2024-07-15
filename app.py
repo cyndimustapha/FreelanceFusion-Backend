@@ -7,6 +7,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import MetaData
 
+#Added for jobposting
+from config import Config
+from models import db
+from routes import init_routes
+######
+
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
@@ -67,10 +74,7 @@ from sqlalchemy import MetaData
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config["JWT_SECRET_KEY"] = "super-secret"
+CORS(app, resources={r"/job/*": {"origins": "http://localhost:5174"}})
 
 # Initialize Extensions
 metadata = MetaData()
@@ -110,3 +114,23 @@ api.add_resource(Login, '/login')
 # Main entry
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+#job posting codes
+app = Flask(__name__)
+app.config.from_object(Config)
+
+CORS(app, resources={r"/job/*": {"origins": "http://localhost:5173"}})
+
+db.init_app(app)
+migrate = Migrate(app, db)
+
+with app.app_context():
+    db.create_all()
+
+init_routes(app)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+ ###   
