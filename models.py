@@ -54,11 +54,14 @@ class JobPosting(db.Model):
             "email": self.email
         }
     
-class Bid(db.Model):
+class Bid(db.Model, SerializerMixin):
+    __tablename__ = 'bids'
+
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
     freelancer_id = db.Column(db.Integer, nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    selected = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f"Bid('{self.amount}', '{self.freelancer_id}')"
@@ -68,6 +71,7 @@ class Bid(db.Model):
             "id": self.id,
             "amount": self.amount,
             "freelancer_id": self.freelancer_id,
-            "job_id": self.job_id
+            "job_id": self.job_id,
+            "selected": self.selected
         }
    

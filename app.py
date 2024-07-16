@@ -6,9 +6,10 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import MetaData
+from resources.bid import BidResource
 
 # Import the User model and Resources module
-from models import User  # Make sure this import path is correct
+from models import User, Bid
 import Resources
 
 #Added for jobposting
@@ -69,9 +70,11 @@ def get_job(job_id):
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job.to_dict())
 
+
 # Add resources
 api.add_resource(Resources.Users, '/users')
 api.add_resource(Login, '/login')
+api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
