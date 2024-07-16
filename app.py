@@ -1,4 +1,4 @@
-from flask import Flask, make_response, request
+from flask import Flask, make_response, request, jsonify
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
 from flask_bcrypt import Bcrypt
@@ -6,77 +6,104 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import MetaData
-from resources.bid import BidResource
-
-# Import the User model and Resources module
-from models import User, Bid
-import Resources
-
-#Added for jobposting
+from models import User, Bid, db
 from config import Config
-from models import db
 from routes import init_routes
-######
-
+from resources.bid import BidResource
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config["JWT_SECRET_KEY"] = "super-secret"
+# Configure the app
+app.config.from_object(Config)
 
-migrate = Migrate(app, db)
-db.init_app(app)
-
-# Initialize Extensions
+# Initialize extensions
 metadata = MetaData()
-db = SQLAlchemy(app, metadata=metadata)
+db.init_app(app)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 api = Api(app)
 
-# Login resource
-class Login(Resource):
+# Initialize routes
+init_routes(app)
+
+# User Resource for handling user operations
+class Users(Resource):
+    @jwt_required()
+    def get(self):
+        current_user = get_jwt_identity()
+        if current_user:
+            users = User.query.all()
+            users_list = [user.to_dict() for user in users]
+            body = {
+                "count": len(users_list),
+                "users": users_list
+            }
+            return make_response(body, 200)
+        else:
+            return make_response({"message": "Unauthorized"}, 401)
+
     def post(self):
-        email = request.json.get("email")
-        password = request.json.get("password")
+        try:
+            email = request.json.get('email')
+            existing_user = User.query.filter_by(email=email).first()
+
+            if existing_user:
+                return make_response({"message": "Email already taken"}, 422)
+
+            new_user = User(
+                username=request.json.get("username"),
+                email=email,
+                role=request.json.get("role"),
+                password=bcrypt.generate_password_hash(request.json.get("password")).decode('utf-8')
+            )
+
+            db.session.add(new_user)
+            db.session.commit()
+
+            access_token = create_access_token(identity=new_user.id)
+
+            response = {
+                "user": new_user.to_dict(),
+                "access_token": access_token
+            }
+
+            return make_response(response, 201)
+
+        except Exception as e:
+            return make_response({"message": str(e)}, 500)
+
+@app.route('/login', methods=['POST', 'OPTIONS'])
+def signin():
+    if request.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+        return ('', 204, headers)
+
+    try:
+        email = request.json.get('email')
+        password = request.json.get('password')
 
         user = User.query.filter_by(email=email).first()
 
-        if not user or not bcrypt.check_password_hash(user.password, password):
-            return make_response({"message": "Invalid email or password"}, 401)
+        if user and bcrypt.check_password_hash(user.password, password):
+            access_token = create_access_token(identity=user.id)
+            return make_response({
+                "user": user.to_dict(),
+                "access_token": access_token
+            }, 200)
+        else:
+            return make_response({"message": "Invalid credentials"}, 401)
 
-        access_token = create_access_token(identity=user.id)
-        response = {
-            "user": user.to_dict(),
-            "access_token": access_token
-        }
+    except Exception as e:
+        return make_response({"message": str(e)}, 500)
 
-        return make_response(response, 200)
-
-@app.route('/api/jobs', methods=['GET'])
-def get_jobs():
-    jobs = Job.query.all()
-    return jsonify([job.to_dict() for job in jobs])
-
-@app.route('/api/jobs/<int:job_id>', methods=['GET'])
-def get_job(job_id):
-    job = Job.query.get(job_id)
-    if job is None:
-        return jsonify({"error": "Job not found"}), 404
-    return jsonify(job.to_dict())
-
-
-# Add resources
-api.add_resource(Resources.Users, '/users')
-api.add_resource(Login, '/login')
-api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
+api.add_resource(Users, '/users')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
-
- ###   
