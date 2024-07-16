@@ -12,6 +12,7 @@ class User(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    role = db.Column(db.Text)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(129), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.now())
@@ -30,9 +31,11 @@ class User(db.Model, SerializerMixin):
         return {
             "id": self.id,
             "username": self.username,
+            "role": self.role,
             "email": self.email,
             "created_at": self.created_at
-    
+        }
+
 class JobPosting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -52,14 +55,14 @@ class JobPosting(db.Model):
             "companyName": self.companyName,
             "email": self.email
         }
-    
+
 class Bid(db.Model, SerializerMixin):
     __tablename__ = 'bids'
 
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
     freelancer_id = db.Column(db.Integer, nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('jobposting.id'), nullable=False)  # Correct foreign key reference
     selected = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
@@ -73,4 +76,3 @@ class Bid(db.Model, SerializerMixin):
             "job_id": self.job_id,
             "selected": self.selected
         }
-   
