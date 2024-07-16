@@ -1,15 +1,12 @@
 from flask import Flask, make_response, request, jsonify
 from flask_migrate import Migrate
-from flask_restful import Api, Resource
+from flask_restful import Api, Resource, reqparse
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import MetaData
 from models import User, Bid, JobPosting, db
 from config import Config
-from routes import init_routes
-from resources.bid import BidResource
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -25,9 +22,6 @@ migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 api = Api(app)
-
-# Initialize routes
-init_routes(app)
 
 # User Resource for handling user operations
 class Users(Resource):
@@ -102,6 +96,21 @@ def signin():
 
     except Exception as e:
         return make_response({"message": str(e)}, 500)
+    
+@app.route('/api/jobs', methods=['POST'])
+def create_job():
+    data = request.json
+    new_job = JobPosting(
+        title=data['title'],
+        description=data['description'],
+        location=data['location'],
+        budget=data['budget'],
+        companyName=data['companyName'],
+        email=data['email']
+    )
+    db.session.add(new_job)
+    db.session.commit()
+    return jsonify({"message": "Job posted successfully!", "job": new_job.to_dict()})
 
 @app.route('/api/jobs', methods=['GET'])
 def get_jobs():
@@ -114,6 +123,79 @@ def get_job(job_id):
     if job is None:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job.to_dict())
+
+class BidResource(Resource):
+    
+    @jwt_required()
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('amount', type=float, required=True, help='Amount must be provided')
+        parser.add_argument('job_id', type=int, required=True, help='Job ID must be provided')
+        args = parser.parse_args()
+
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(args['job_id'])
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        bid = Bid(
+            amount=args['amount'],
+            job_id=args['job_id'],
+            freelancer_id=current_user_id
+        )
+
+        db.session.add(bid)
+        db.session.commit()
+
+        return {'message': 'Bid placed successfully', 'bid_id': bid.id}, 201
+
+    @jwt_required()
+    def get(self, job_id):
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(job_id)
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        bids = Bid.query.filter_by(job_id=job_id).all()
+        serialized_bids = [{'id': bid.id, 'amount': bid.amount, 'freelancer_id': bid.freelancer_id} for bid in bids]
+
+        return {'bids': serialized_bids}, 200
+
+    @jwt_required()
+    def put(self, job_id):
+        parser = reqparse.RequestParser()
+        parser.add_argument('bid_id', type=int, required=True, help='Bid ID must be provided')
+        args = parser.parse_args()
+
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(job_id)
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        if job.client_id != current_user_id:
+            return {'message': 'Only the client who posted the job can select a bid'}, 403
+
+        bid = Bid.query.get(args['bid_id'])
+        if not bid or bid.job_id != job_id:
+            return {'message': 'Bid not found for this job'}, 404
+
+        # Mark all bids for this job as not selected
+        Bid.query.filter_by(job_id=job_id).update({'selected': False})
+
+        # Mark the chosen bid as selected
+        bid.selected = True
+        db.session.commit()
+
+        return {'message': 'Bid selected successfully'}, 200
 
 # Add resources to API
 api.add_resource(Users, '/users')

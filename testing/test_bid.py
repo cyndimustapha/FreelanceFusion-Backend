@@ -1,6 +1,6 @@
 import json
 from flask_jwt_extended import create_access_token
-from models import User, Job, Bid
+from models import User, JobPosting, Bid
 
 def test_place_bid(test_client, init_database):
     # Login and get access token
