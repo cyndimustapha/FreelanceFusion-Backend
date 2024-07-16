@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from flask_bcrypt import Bcrypt
-from models import db, User, Job, Bid
+from models import db, User, JobPosting, Bid
 
 bcrypt = Bcrypt()
 
@@ -58,7 +58,7 @@ def create_jobs():
     ]
     
     for job_data in jobs:
-        new_job = Job(
+        new_job = JobPosting(
             title=job_data['title'],
             description=job_data['description'],
             budget=job_data['budget'],

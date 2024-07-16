@@ -16,3 +16,5 @@ def init_routes(app):
         db.session.add(new_job)
         db.session.commit()
         return jsonify({"message": "Job posted successfully!", "job": new_job.to_dict()})
+
+    
