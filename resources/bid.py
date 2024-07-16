@@ -1,6 +1,6 @@
 from flask_restful import Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Bid, Job
+from models import db, Bid, JobPosting
 
 class BidResource(Resource):
     
@@ -15,7 +15,7 @@ class BidResource(Resource):
         if not current_user_id:
             return {'message': 'User not authenticated'}, 401
 
-        job = Job.query.get(args['job_id'])
+        job = JobPosting.query.get(args['job_id'])
         if not job:
             return {'message': 'Job not found'}, 404
 
@@ -36,7 +36,7 @@ class BidResource(Resource):
         if not current_user_id:
             return {'message': 'User not authenticated'}, 401
 
-        job = Job.query.get(job_id)
+        job = JobPosting.query.get(job_id)
         if not job:
             return {'message': 'Job not found'}, 404
 
@@ -55,7 +55,7 @@ class BidResource(Resource):
         if not current_user_id:
             return {'message': 'User not authenticated'}, 401
 
-        job = Job.query.get(job_id)
+        job = JobPosting.query.get(job_id)
         if not job:
             return {'message': 'Job not found'}, 404
 
