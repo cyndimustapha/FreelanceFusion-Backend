@@ -6,7 +6,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import MetaData
-from models import User, Bid, db
+from models import User, Bid, JobPosting, db
 from config import Config
 from routes import init_routes
 from resources.bid import BidResource
@@ -103,7 +103,21 @@ def signin():
     except Exception as e:
         return make_response({"message": str(e)}, 500)
 
+@app.route('/api/jobs', methods=['GET'])
+def get_jobs():
+    jobs = JobPosting.query.all()
+    return jsonify([job.to_dict() for job in jobs])
+
+@app.route('/api/jobs/<int:job_id>', methods=['GET'])
+def get_job(job_id):
+    job = JobPosting.query.get(job_id)
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+    return jsonify(job.to_dict())
+
+# Add resources to API
 api.add_resource(Users, '/users')
+api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
