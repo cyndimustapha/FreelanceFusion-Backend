@@ -53,4 +53,21 @@ class JobPosting(db.Model):
             "companyName": self.companyName,
             "email": self.email
         }
+    
+class Bid(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    freelancer_id = db.Column(db.Integer, nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
+
+    def __repr__(self):
+        return f"Bid('{self.amount}', '{self.freelancer_id}')"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "amount": self.amount,
+            "freelancer_id": self.freelancer_id,
+            "job_id": self.job_id
+        }
    
