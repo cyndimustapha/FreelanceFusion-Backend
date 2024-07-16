@@ -12,10 +12,10 @@ class User(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    role = db.Column(db.Text)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(129), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.now())
+    role = db.Column(db.Text)
 
     @validates('email')
     def validate_email(self, key, email):
@@ -31,12 +31,14 @@ class User(db.Model, SerializerMixin):
         return {
             "id": self.id,
             "username": self.username,
-            "role": self.role,
             "email": self.email,
-            "created_at": self.created_at
+            "created_at": self.created_at,
+            "role": self.role
         }
 
-class JobPosting(db.Model):
+class JobPosting(db.Model, SerializerMixin):
+    __tablename__ = 'job_postings'
+
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -62,7 +64,7 @@ class Bid(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
     freelancer_id = db.Column(db.Integer, nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('jobposting.id'), nullable=False)  # Correct foreign key reference
+    job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
     selected = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
