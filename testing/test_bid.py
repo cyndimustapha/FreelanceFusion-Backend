@@ -1,6 +1,40 @@
 import json
 from flask_jwt_extended import create_access_token
+import pytest
+from app import app, db
 from models import User, JobPosting, Bid
+
+@pytest.fixture
+def test_client():
+    with app.test_client() as testing_client:
+        with app.app_context():
+            yield testing_client
+
+@pytest.fixture
+def init_database():
+    db.create_all()
+    
+    # Add test users
+    client = User(username='Client One', email='client1@example.com', password='password', role='client')
+    freelancer1 = User(username='Freelancer One', email='freelancer1@example.com', password='password', role='freelancer')
+    freelancer2 = User(username='Freelancer Two', email='freelancer2@example.com', password='password', role='freelancer')
+    
+    db.session.add(client)
+    db.session.add(freelancer1)
+    db.session.add(freelancer2)
+    db.session.commit()
+
+    # Add test jobs
+    job1 = JobPosting(title='Test Job 1', description='This is a test job description', budget=1000, client_id=client.id)
+    job2 = JobPosting(title='Test Job 2', description='This is another test job description', budget=2000, client_id=client.id)
+    
+    db.session.add(job1)
+    db.session.add(job2)
+    db.session.commit()
+
+    yield db
+
+    db.drop_all()
 
 def test_place_bid(test_client, init_database):
     # Login and get access token
