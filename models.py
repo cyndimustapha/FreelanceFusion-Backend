@@ -1,80 +1,273 @@
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, make_response, request, jsonify
+from flask_migrate import Migrate
+from flask_restful import Api, Resource, reqparse
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_cors import CORS
 from sqlalchemy import MetaData
-from sqlalchemy_serializer import SerializerMixin
-from sqlalchemy.orm import validates
-import re
+from models import User, Bid, JobPosting, db, Message
+from config import Config
+from datetime import datetime, timezone
 
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+
+# Configure the app
+app.config.from_object(Config)
+
+# Initialize extensions
 metadata = MetaData()
-db = SQLAlchemy(metadata=metadata)
+db.init_app(app)
+migrate = Migrate(app, db)
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
+api = Api(app)
 
-class User(db.Model, SerializerMixin):
-    __tablename__ = 'users'
+@app.before_request
+def log_request_info():
+    app.logger.debug('Headers: %s', request.headers)
+    app.logger.debug('Body: %s', request.get_data())
 
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(129), nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.now())
-    role = db.Column(db.Text)
+# User Resource for handling user operations
+class Users(Resource):
+    @jwt_required()
+    def get(self):
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+            return response
+        current_user = get_jwt_identity()
+        if current_user:
+            users = User.query.all()
+            users_list = [user.to_dict() for user in users]
+            body = {
+                "count": len(users_list),
+                "users": users_list,
+                "user": current_user
+            }
+            return make_response(body, 200)
+        else:
+            return make_response({"message": "Unauthorized"}, 401)
 
-    @validates('email')
-    def validate_email(self, key, email):
-        regex = r'^\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        if not re.match(regex, email):
-            raise ValueError("Invalid email address")
-        return email
+    def post(self):
+        try:
+            email = request.json.get('email')
+            existing_user = User.query.filter_by(email=email).first()
 
-    def __repr__(self):
-        return f"<User {self.id}: {self.username}>"
+            if existing_user:
+                return make_response({"message": "Email already taken"}, 422)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "username": self.username,
-            "email": self.email,
-            "created_at": self.created_at,
-            "role": self.role
+            new_user = User(
+                username=request.json.get("username"),
+                email=email,
+                role=request.json.get("role"),
+                password=bcrypt.generate_password_hash(request.json.get("password")).decode('utf-8')
+            )
+
+            db.session.add(new_user)
+            db.session.commit()
+
+            access_token = create_access_token(identity=new_user.id)
+
+            response = {
+                "user": new_user.to_dict(),
+                "access_token": access_token
+            }
+
+            return make_response(response, 201)
+
+        except Exception as e:
+            return make_response({"message": str(e)}, 500)
+
+@app.route('/login', methods=['POST', 'OPTIONS'])
+def signin():
+    if request.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         }
+        return '', 204, headers
 
-class JobPosting(db.Model, SerializerMixin):
-    __tablename__ = 'job_postings'
+    try:
+        if request.is_json:
+            data = request.get_json()
+            email = data.get('email')
+            password = data.get('password')
 
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    location = db.Column(db.String(100), nullable=False)
-    budget = db.Column(db.Float, nullable=False)
-    companyName = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
+            user = User.query.filter_by(email=email).first()
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "description": self.description,
-            "location": self.location,
-            "budget": self.budget,
-            "companyName": self.companyName,
-            "email": self.email
-        }
+            if user and bcrypt.check_password_hash(user.password, password):
+                access_token = create_access_token(identity=user.id)
+                return make_response({
+                    "user": user.to_dict(),
+                    "access_token": access_token
+                }, 200)
+            else:
+                return make_response({"message": "Invalid credentials"}, 401)
+        else:
+            return make_response({"message": "Request must be JSON"}, 400)
 
-class Bid(db.Model, SerializerMixin):
-    __tablename__ = 'bids'
+    except Exception as e:
+        return make_response({"message": str(e)}, 500)
+    
+@app.route('/api/jobs', methods=['POST'])
+def create_job():
+    data = request.json
+    new_job = JobPosting(
+        title=data['title'],
+        description=data['description'],
+        location=data['location'],
+        budget=data['budget'],
+        companyName=data['companyName'],
+        email=data['email']
+    )
+    db.session.add(new_job)
+    db.session.commit()
+    return jsonify({"message": "Job posted successfully!", "job": new_job.to_dict()})
 
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float, nullable=False)
-    freelancer_id = db.Column(db.Integer, nullable=False)
-    job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
-    selected = db.Column(db.Boolean, default=False)
+@app.route('/api/jobs', methods=['GET'])
+def get_jobs():
+    jobs = JobPosting.query.all()
+    return jsonify([job.to_dict() for job in jobs])
 
-    def __repr__(self):
-        return f"Bid('{self.amount}', '{self.freelancer_id}')"
+@app.route('/api/jobs/<int:job_id>', methods=['GET'])
+def get_job(job_id):
+    job = JobPosting.query.get(job_id)
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+    return jsonify(job.to_dict())
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "amount": self.amount,
-            "freelancer_id": self.freelancer_id,
-            "job_id": self.job_id,
-            "selected": self.selected
-        }
+class BidResource(Resource):
+    
+    @jwt_required()
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('amount', type=float, required=True, help='Amount must be provided')
+        parser.add_argument('job_id', type=int, required=True, help='Job ID must be provided')
+        args = parser.parse_args()
+
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(args['job_id'])
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        bid = Bid(
+            amount=args['amount'],
+            job_id=args['job_id'],
+            freelancer_id=current_user_id
+        )
+
+        db.session.add(bid)
+        db.session.commit()
+
+        return {'message': 'Bid placed successfully', 'bid_id': bid.id}, 201
+
+    @jwt_required()
+    def get(self, job_id):
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(job_id)
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        bids = Bid.query.filter_by(job_id=job_id).all()
+        serialized_bids = [{'id': bid.id, 'amount': bid.amount, 'freelancer_id': bid.freelancer_id} for bid in bids]
+
+        return {'bids': serialized_bids}, 200
+
+    @jwt_required()
+    def put(self, job_id):
+        parser = reqparse.RequestParser()
+        parser.add_argument('bid_id', type=int, required=True, help='Bid ID must be provided')
+        args = parser.parse_args()
+
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return {'message': 'User not authenticated'}, 401
+
+        job = JobPosting.query.get(job_id)
+        if not job:
+            return {'message': 'Job not found'}, 404
+
+        if job.client_id != current_user_id:
+            return {'message': 'Only the client who posted the job can select a bid'}, 403
+
+        bid = Bid.query.get(args['bid_id'])
+        if not bid or bid.job_id != job_id:
+            return {'message': 'Bid not found for this job'}, 404
+
+        # Mark all bids for this job as not selected
+        Bid.query.filter_by(job_id=job_id).update({'selected': False})
+
+        # Mark the chosen bid as selected
+        bid.selected = True
+        db.session.commit()
+
+        return {'message': 'Bid selected successfully'}, 200
+    
+@app.route('/api/messages', methods=['POST'])
+@jwt_required()
+def create_message():
+    data = request.get_json()
+
+    recipient_id = data.get('user_id')
+    message_text = data.get('message')
+
+    if not recipient_id or not message_text:
+        return jsonify({"error": "User ID and message text are required"}), 400
+
+    # Get the recipient user
+    recipient = User.query.get(recipient_id)
+    if not recipient:
+        return jsonify({"error": "Recipient not found"}), 404
+
+    # Get the logged-in user
+    sender_id = get_jwt_identity()
+    sender = User.query.get(sender_id)
+    if not sender:
+        return jsonify({"error": "Sender not found"}), 404
+
+    # Create the message
+    new_message = Message(
+        sender_id=sender.id,
+        recipient_id=recipient.id,
+        message=message_text,
+        time=datetime.now(timezone.utc())
+    )
+
+    db.session.add(new_message)
+    db.session.commit()
+
+    return jsonify(new_message.to_dict()), 201
+
+@app.route('/api/messages', methods=['GET'])
+@jwt_required()
+def get_messages():
+    user_id = get_jwt_identity()
+
+    # Get the logged-in user
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Get messages where the user is either the sender or recipient
+    sent_messages = Message.query.filter_by(sender_id=user.id).order_by(Message.time.desc()).all()
+    received_messages = Message.query.filter_by(recipient_id=user.id).order_by(Message.time.desc()).all()
+    all_messages = sent_messages + received_messages
+
+    return jsonify([message.to_dict() for message in all_messages]), 200
+
+# Add resources to API
+api.add_resource(Users, '/users')
+api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
+
+if __name__ == '__main__':
+    app.run(port=5555, debug=True)
