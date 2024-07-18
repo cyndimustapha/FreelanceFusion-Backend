@@ -5,12 +5,13 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
 from sqlalchemy import MetaData
-from models import User, Bid, JobPosting, db
+from models import User, Bid, JobPosting, db, Message
 from config import Config
+from datetime import datetime, timezone
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 
 # Configure the app
 app.config.from_object(Config)
@@ -23,17 +24,28 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 api = Api(app)
 
+@app.before_request
+def log_request_info():
+    app.logger.debug('Headers: %s', request.headers)
+    app.logger.debug('Body: %s', request.get_data())
+
 # User Resource for handling user operations
 class Users(Resource):
     @jwt_required()
     def get(self):
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+            return response
         current_user = get_jwt_identity()
         if current_user:
             users = User.query.all()
             users_list = [user.to_dict() for user in users]
             body = {
                 "count": len(users_list),
-                "users": users_list
+                "users": users_list,
+                "user": current_user
             }
             return make_response(body, 200)
         else:
@@ -77,22 +89,26 @@ def signin():
             'Access-Control-Allow-Methods': 'POST',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         }
-        return ('', 204, headers)
+        return '', 204, headers
 
     try:
-        email = request.json.get('email')
-        password = request.json.get('password')
+        if request.is_json:
+            data = request.get_json()
+            email = data.get('email')
+            password = data.get('password')
 
-        user = User.query.filter_by(email=email).first()
+            user = User.query.filter_by(email=email).first()
 
-        if user and bcrypt.check_password_hash(user.password, password):
-            access_token = create_access_token(identity=user.id)
-            return make_response({
-                "user": user.to_dict(),
-                "access_token": access_token
-            }, 200)
+            if user and bcrypt.check_password_hash(user.password, password):
+                access_token = create_access_token(identity=user.id)
+                return make_response({
+                    "user": user.to_dict(),
+                    "access_token": access_token
+                }, 200)
+            else:
+                return make_response({"message": "Invalid credentials"}, 401)
         else:
-            return make_response({"message": "Invalid credentials"}, 401)
+            return make_response({"message": "Request must be JSON"}, 400)
 
     except Exception as e:
         return make_response({"message": str(e)}, 500)
@@ -196,6 +212,58 @@ class BidResource(Resource):
         db.session.commit()
 
         return {'message': 'Bid selected successfully'}, 200
+    
+@app.route('/api/messages', methods=['POST'])
+@jwt_required()
+def create_message():
+    data = request.get_json()
+
+    recipient_id = data.get('user_id')
+    message_text = data.get('message')
+
+    if not recipient_id or not message_text:
+        return jsonify({"error": "User ID and message text are required"}), 400
+
+    # Get the recipient user
+    recipient = User.query.get(recipient_id)
+    if not recipient:
+        return jsonify({"error": "Recipient not found"}), 404
+
+    # Get the logged-in user
+    sender_id = get_jwt_identity()
+    sender = User.query.get(sender_id)
+    if not sender:
+        return jsonify({"error": "Sender not found"}), 404
+
+    # Create the message
+    new_message = Message(
+        sender_id=sender.id,
+        recipient_id=recipient.id,
+        message=message_text,
+        time=datetime.now(timezone.utc())
+    )
+
+    db.session.add(new_message)
+    db.session.commit()
+
+    return jsonify(new_message.to_dict()), 201
+
+@app.route('/api/messages', methods=['GET'])
+@jwt_required()
+def get_messages():
+    user_id = get_jwt_identity()
+
+    # Get the logged-in user
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Get messages where the user is either the sender or recipient
+    sent_messages = Message.query.filter_by(sender_id=user.id).order_by(Message.time.desc()).all()
+    received_messages = Message.query.filter_by(recipient_id=user.id).order_by(Message.time.desc()).all()
+    all_messages = sent_messages + received_messages
+
+    return jsonify([message.to_dict() for message in all_messages]), 200
 
 # Add resources to API
 api.add_resource(Users, '/users')
