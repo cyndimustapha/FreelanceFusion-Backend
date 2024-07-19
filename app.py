@@ -8,10 +8,12 @@ from sqlalchemy import MetaData
 from models import User, Bid, JobPosting, db, Message
 from config import Config
 from datetime import datetime, timezone
+from flasgger import Swagger, swag_from
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+swagger = Swagger(app)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
 # Configure the app
 app.config.from_object(Config)
@@ -32,6 +34,27 @@ def log_request_info():
 # User Resource for handling user operations
 class Users(Resource):
     @jwt_required()
+    @swag_from({
+        'responses': {
+            200: {
+                'description': 'List of users',
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'count': {'type': 'integer'},
+                        'users': {
+                            'type': 'array',
+                            'items': {'type': 'object'}
+                        },
+                        'user': {'type': 'object'}
+                    }
+                }
+            },
+            401: {
+                'description': 'Unauthorized'
+            }
+        }
+    })
     def get(self):
         if request.method == 'OPTIONS':
             response = app.make_default_options_response()
@@ -51,6 +74,26 @@ class Users(Resource):
         else:
             return make_response({"message": "Unauthorized"}, 401)
 
+    @swag_from({
+        'responses': {
+            201: {
+                'description': 'User created successfully',
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'user': {'type': 'object'},
+                        'access_token': {'type': 'string'}
+                    }
+                }
+            },
+            422: {
+                'description': 'Email already taken'
+            },
+            500: {
+                'description': 'Internal server error'
+            }
+        }
+    })
     def post(self):
         try:
             email = request.json.get('email')
@@ -82,6 +125,29 @@ class Users(Resource):
             return make_response({"message": str(e)}, 500)
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'User signed in successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'user': {'type': 'object'},
+                    'access_token': {'type': 'string'}
+                }
+            }
+        },
+        401: {
+            'description': 'Invalid credentials'
+        },
+        400: {
+            'description': 'Request must be JSON'
+        },
+        500: {
+            'description': 'Internal server error'
+        }
+    }
+})
 def signin():
     if request.method == 'OPTIONS':
         headers = {
@@ -114,6 +180,20 @@ def signin():
         return make_response({"message": str(e)}, 500)
     
 @app.route('/api/jobs', methods=['POST'])
+@swag_from({
+    'responses': {
+        201: {
+            'description': 'Job posted successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'},
+                    'job': {'type': 'object'}
+                }
+            }
+        }
+    }
+})
 def create_job():
     data = request.json
     new_job = JobPosting(
@@ -129,11 +209,33 @@ def create_job():
     return jsonify({"message": "Job posted successfully!", "job": new_job.to_dict()})
 
 @app.route('/api/jobs', methods=['GET'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'List of jobs',
+            'schema': {
+                'type': 'array',
+                'items': {'type': 'object'}
+            }
+        }
+    }
+})
 def get_jobs():
     jobs = JobPosting.query.all()
     return jsonify([job.to_dict() for job in jobs])
 
 @app.route('/api/jobs/<int:job_id>', methods=['GET'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'Job details',
+            'schema': {'type': 'object'}
+        },
+        404: {
+            'description': 'Job not found'
+        }
+    }
+})
 def get_job(job_id):
     job = JobPosting.query.get(job_id)
     if job is None:
@@ -141,8 +243,21 @@ def get_job(job_id):
     return jsonify(job.to_dict())
 
 class BidResource(Resource):
-    
     @jwt_required()
+    @swag_from({
+        'responses': {
+            201: {
+                'description': 'Bid placed successfully',
+                'schema': {'type': 'object'}
+            },
+            401: {
+                'description': 'User not authenticated'
+            },
+            404: {
+                'description': 'Job not found'
+            }
+        }
+    })
     def post(self):
         parser = reqparse.RequestParser()
         parser.add_argument('amount', type=float, required=True, help='Amount must be provided')
@@ -169,7 +284,29 @@ class BidResource(Resource):
         return {'message': 'Bid placed successfully', 'bid_id': bid.id}, 201
 
     @jwt_required()
+    @swag_from({
+        'responses': {
+            200: {
+                'description': 'List of bids',
+                'schema': {
+                    'type': 'array',
+                    'items': {'type': 'object'}
+                }
+            },
+            401: {
+                'description': 'User not authenticated'
+            },
+            404: {
+                'description': 'Job not found'
+            }
+        }
+    })
     def get(self, job_id):
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+            return response
         current_user_id = get_jwt_identity()
         if not current_user_id:
             return {'message': 'User not authenticated'}, 401
@@ -179,11 +316,27 @@ class BidResource(Resource):
             return {'message': 'Job not found'}, 404
 
         bids = Bid.query.filter_by(job_id=job_id).all()
-        serialized_bids = [{'id': bid.id, 'amount': bid.amount, 'freelancer_id': bid.freelancer_id} for bid in bids]
+        serialized_bids = [{'id': bid.id, 'amount': bid.amount, 'freelancer': {'username': bid.freelancer.username, 'email': bid.freelancer.email}, 'job': bid.job.to_dict()} for bid in bids]
 
         return {'bids': serialized_bids}, 200
 
     @jwt_required()
+    @swag_from({
+        'responses': {
+            200: {
+                'description': 'Bid selected successfully'
+            },
+            401: {
+                'description': 'User not authenticated'
+            },
+            403: {
+                'description': 'Only the client who posted the job can select a bid'
+            },
+            404: {
+                'description': 'Job not found or Bid not found for this job'
+            }
+        }
+    })
     def put(self, job_id):
         parser = reqparse.RequestParser()
         parser.add_argument('bid_id', type=int, required=True, help='Bid ID must be provided')
@@ -215,6 +368,20 @@ class BidResource(Resource):
     
 @app.route('/api/messages', methods=['POST'])
 @jwt_required()
+@swag_from({
+    'responses': {
+        201: {
+            'description': 'Message created successfully',
+            'schema': {'type': 'object'}
+        },
+        400: {
+            'description': 'User ID and message text are required'
+        },
+        404: {
+            'description': 'Recipient not found or Sender not found'
+        }
+    }
+})
 def create_message():
     data = request.get_json()
 
@@ -250,6 +417,20 @@ def create_message():
 
 @app.route('/api/messages', methods=['GET'])
 @jwt_required()
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'List of messages',
+            'schema': {
+                'type': 'array',
+                'items': {'type': 'object'}
+            }
+        },
+        404: {
+            'description': 'User not found'
+        }
+    }
+})
 def get_messages():
     user_id = get_jwt_identity()
 
@@ -267,7 +448,7 @@ def get_messages():
 
 # Add resources to API
 api.add_resource(Users, '/users')
-api.add_resource(BidResource, '/bids', '/bids/<int:job_id>')
+api.add_resource(BidResource, '/api/bids', '/api/bids/<int:job_id>', '/api/bids/<int:job_id>/<float:amount>')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

@@ -19,6 +19,10 @@ class User(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=db.func.now())
     role = db.Column(db.Text)
 
+    job_bidder = db.relationship('Bid', backref='freelancer')
+    sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy=True)
+    received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient', lazy=True)
+
     @validates('email')
     def validate_email(self, key, email):
         regex = r'^\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -49,6 +53,11 @@ class JobPosting(db.Model, SerializerMixin):
     companyName = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
 
+    gig = db.relationship('Bid', backref='job')
+
+    def __repr__(self):
+        return f"JobPosting('{self.title}')"
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -65,7 +74,7 @@ class Bid(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
-    freelancer_id = db.Column(db.Integer, nullable=False)
+    freelancer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id'), nullable=False)
     selected = db.Column(db.Boolean, default=False)
 
@@ -76,13 +85,13 @@ class Bid(db.Model, SerializerMixin):
         return {
             "id": self.id,
             "amount": self.amount,
-            "freelancer_id": self.freelancer_id,
-            "job_id": self.job_id,
+            "freelancer": self.freelancer.to_dict(),
+            "job": self.job.to_dict(),
             "selected": self.selected
         }
 
 class Message(db.Model, SerializerMixin):
-    _tablename_ = 'messages'
+    __tablename__ = 'messages'
 
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -90,10 +99,7 @@ class Message(db.Model, SerializerMixin):
     message = db.Column(db.Text, nullable=False)
     time = db.Column(db.DateTime, default=db.func.now())
 
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_messages')
-
-    def _repr_(self):
+    def __repr__(self):
         return f"<Message {self.id}: from {self.sender_id} to {self.recipient_id}>"
 
     def to_dict(self):
