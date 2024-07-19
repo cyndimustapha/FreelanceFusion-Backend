@@ -18,7 +18,6 @@ CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_
 # Configure the app
 app.config.from_object(Config)
 
-# Initialize extensions
 metadata = MetaData()
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -32,99 +31,60 @@ def log_request_info():
     app.logger.debug('Body: %s', request.get_data())
 
 # User Resource for handling user operations
-class Users(Resource):
-    @jwt_required()
-    @swag_from({
-        'responses': {
-            200: {
-                'description': 'List of users',
-                'schema': {
-                    'type': 'object',
-                    'properties': {
-                        'count': {'type': 'integer'},
-                        'users': {
-                            'type': 'array',
-                            'items': {'type': 'object'}
-                        },
-                        'user': {'type': 'object'}
-                    }
+@app.route('/api/users', methods=['POST'])
+@swag_from({
+    'responses': {
+        201: {
+            'description': 'User created successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'user': {'type': 'object'},
+                    'access_token': {'type': 'string'}
                 }
-            },
-            401: {
-                'description': 'Unauthorized'
             }
+        },
+        422: {
+            'description': 'Email already taken'
+        },
+        500: {
+            'description': 'Internal server error'
         }
-    })
-    def get(self):
-        if request.method == 'OPTIONS':
-            response = app.make_default_options_response()
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-            return response
-        current_user = get_jwt_identity()
-        if current_user:
-            users = User.query.all()
-            users_list = [user.to_dict() for user in users]
-            body = {
-                "count": len(users_list),
-                "users": users_list,
-                "user": current_user
-            }
-            return make_response(body, 200)
-        else:
-            return make_response({"message": "Unauthorized"}, 401)
+    }
+})
+def create_user():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        existing_user = User.query.filter_by(email=email).first()
 
-    @swag_from({
-        'responses': {
-            201: {
-                'description': 'User created successfully',
-                'schema': {
-                    'type': 'object',
-                    'properties': {
-                        'user': {'type': 'object'},
-                        'access_token': {'type': 'string'}
-                    }
-                }
-            },
-            422: {
-                'description': 'Email already taken'
-            },
-            500: {
-                'description': 'Internal server error'
-            }
+        if existing_user:
+            return make_response({"message": "Email already taken"}, 422)
+
+        new_user = User(
+            username=data.get("username"),
+            email=email,
+            role=data.get("role"),
+            password=bcrypt.generate_password_hash(data.get("password")).decode('utf-8')
+        )
+
+        db.session.add(new_user)
+        db.session.commit()
+
+        access_token = create_access_token(identity=new_user.id)
+
+        response = {
+            "user": new_user.to_dict(),
+            "access_token": access_token
         }
-    })
-    def post(self):
-        try:
-            email = request.json.get('email')
-            existing_user = User.query.filter_by(email=email).first()
 
-            if existing_user:
-                return make_response({"message": "Email already taken"}, 422)
+        return make_response(response, 201)
 
-            new_user = User(
-                username=request.json.get("username"),
-                email=email,
-                role=request.json.get("role"),
-                password=bcrypt.generate_password_hash(request.json.get("password")).decode('utf-8')
-            )
+    except Exception as e:
+        app.logger.error(f"Error creating user: {e}")
+        return make_response({"message": str(e)}, 500)
 
-            db.session.add(new_user)
-            db.session.commit()
-
-            access_token = create_access_token(identity=new_user.id)
-
-            response = {
-                "user": new_user.to_dict(),
-                "access_token": access_token
-            }
-
-            return make_response(response, 201)
-
-        except Exception as e:
-            return make_response({"message": str(e)}, 500)
-
-@app.route('/login', methods=['POST', 'OPTIONS'])
+@app.route('/api/login', methods=['POST'])
 @swag_from({
     'responses': {
         200: {
@@ -148,15 +108,7 @@ class Users(Resource):
         }
     }
 })
-def signin():
-    if request.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        }
-        return '', 204, headers
-
+def login():
     try:
         if request.is_json:
             data = request.get_json()
@@ -175,10 +127,10 @@ def signin():
                 return make_response({"message": "Invalid credentials"}, 401)
         else:
             return make_response({"message": "Request must be JSON"}, 400)
-
     except Exception as e:
+        app.logger.error(f"Error during login: {e}")
         return make_response({"message": str(e)}, 500)
-    
+
 @app.route('/api/jobs', methods=['POST'])
 @swag_from({
     'responses': {
@@ -333,7 +285,7 @@ class BidResource(Resource):
                 'description': 'Only the client who posted the job can select a bid'
             },
             404: {
-                'description': 'Job not found or Bid not found for this job'
+                'description': 'Bid not found for this job'
             }
         }
     })
@@ -365,7 +317,7 @@ class BidResource(Resource):
         db.session.commit()
 
         return {'message': 'Bid selected successfully'}, 200
-    
+
 @app.route('/api/messages', methods=['POST'])
 @jwt_required()
 @swag_from({
@@ -407,7 +359,7 @@ def create_message():
         sender_id=sender.id,
         recipient_id=recipient.id,
         message=message_text,
-        time=datetime.now(timezone.utc())
+        time=datetime.now(timezone.utc)
     )
 
     db.session.add(new_message)
@@ -447,7 +399,6 @@ def get_messages():
     return jsonify([message.to_dict() for message in all_messages]), 200
 
 # Add resources to API
-api.add_resource(Users, '/users')
 api.add_resource(BidResource, '/api/bids', '/api/bids/<int:job_id>', '/api/bids/<int:job_id>/<float:amount>')
 
 if __name__ == '__main__':
