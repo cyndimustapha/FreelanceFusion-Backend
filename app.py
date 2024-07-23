@@ -152,7 +152,7 @@ def create_job():
         title=data['title'],
         description=data['description'],
         location=data['location'],
-        budget=data['budget'],
+        budget=float(data['budget']),
         companyName=data['companyName'],
         email=data['email']
     )
@@ -193,6 +193,56 @@ def get_job(job_id):
     if job is None:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job.to_dict())
+
+@app.route('/api/user/bids', methods=['GET'])
+@jwt_required()
+@swag_from({
+    'summary': 'Get all bids for the logged-in user',
+    'description': 'Retrieve all bids where the logged-in user is the freelancer',
+    'tags': ['Bids'],
+    'responses': {
+        200: {
+            'description': 'A list of bids',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {
+                            'type': 'integer',
+                            'description': 'The bid ID'
+                        },
+                        'amount': {
+                            'type': 'number',
+                            'format': 'float',
+                            'description': 'The amount of the bid'
+                        },
+                        'freelancer_id': {
+                            'type': 'integer',
+                            'description': 'The ID of the freelancer'
+                        },
+                        'job_id': {
+                            'type': 'integer',
+                            'description': 'The ID of the job'
+                        },
+                        'selected': {
+                            'type': 'boolean',
+                            'description': 'Whether the bid was selected'
+                        }
+                    }
+                }
+            }
+        },
+        401: {
+            'description': 'Unauthorized'
+        }
+    }
+})
+def get_user_bids():
+    current_user_id = get_jwt_identity()
+    bids = Bid.query.filter_by(freelancer_id=current_user_id).all()
+    bids_list = [bid.to_dict() for bid in bids]
+    return jsonify(bids_list), 200
 
 class BidResource(Resource):
     @jwt_required()
@@ -302,7 +352,7 @@ class BidResource(Resource):
         if not job:
             return {'message': 'Job not found'}, 404
 
-        if job.client_id != current_user_id:
+        if job.email != User.query.get(current_user_id).email:
             return {'message': 'Only the client who posted the job can select a bid'}, 403
 
         bid = Bid.query.get(args['bid_id'])
