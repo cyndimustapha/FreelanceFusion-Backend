@@ -13,7 +13,7 @@ from flasgger import Swagger, swag_from
 # Initialize Flask app
 app = Flask(__name__)
 swagger = Swagger(app)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+CORS(app, resources={r"/api*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
 # Configure the app
 app.config.from_object(Config)
