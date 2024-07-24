@@ -53,6 +53,11 @@ def log_request_info():
     }
 })
 def create_user():
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
     try:
         data = request.get_json()
         email = data.get('email')
@@ -109,6 +114,11 @@ def create_user():
     }
 })
 def login():
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
     try:
         if request.is_json:
             data = request.get_json()
@@ -130,6 +140,36 @@ def login():
     except Exception as e:
         app.logger.error(f"Error during login: {e}")
         return make_response({"message": str(e)}, 500)
+
+# User Resource for handling user operations
+@app.route('/api/users', methods=['GET'])
+@jwt_required()
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'Users fetched successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'users': {'type': 'object'},
+                }
+            }
+        },
+        500: {
+            'description': 'Internal server error'
+        }
+    }
+})
+def fetch_users():
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+    current_user_id = get_jwt_identity()
+    users = User.query.filter(User.id != current_user_id).all()
+    users_list = [user.to_dict() for user in users]
+    return jsonify(users_list), 200
 
 @app.route('/api/jobs', methods=['POST'])
 @swag_from({
@@ -340,6 +380,11 @@ class BidResource(Resource):
         }
     })
     def put(self, job_id):
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+            return response
         parser = reqparse.RequestParser()
         parser.add_argument('bid_id', type=int, required=True, help='Bid ID must be provided')
         args = parser.parse_args()
@@ -445,6 +490,7 @@ def get_messages():
     sent_messages = Message.query.filter_by(sender_id=user.id).order_by(Message.time.desc()).all()
     received_messages = Message.query.filter_by(recipient_id=user.id).order_by(Message.time.desc()).all()
     all_messages = sent_messages + received_messages
+    print(all_messages)
 
     return jsonify([message.to_dict() for message in all_messages]), 200
 
